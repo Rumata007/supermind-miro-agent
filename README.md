@@ -16,7 +16,7 @@ Claude Code (AI facilitator)
      └── WebSearch ──────── deep research & validation
 ```
 
-The facilitator triggers each step by telling Claude Code to run it (e.g., "запусти крок 1"). Claude reads the board state, processes ideas, and places structured facilitation guides or synthesis documents back on the board.
+The facilitator triggers each step by telling Claude Code to run it (e.g., "run step 1"). Claude reads the board state, processes ideas, and places structured facilitation guides or synthesis documents back on the board.
 
 ## Methodology: Supermind Design (MIT)
 
@@ -106,11 +106,7 @@ npm install
 
 ### Configuration
 
-Copy the example env file and fill in your own values:
-
-```bash
-cp .env.example .env
-```
+Create a `.env` file:
 
 ```env
 MIRO_API_TOKEN=your_miro_api_token
@@ -123,12 +119,12 @@ MIRO_BOARD_URL=https://miro.com/app/board/your_board_id/
 Open a **new Claude Code chat** for each session. Then simply give commands:
 
 ```
-запусти крок 1   →  Problem Exploration guides placed on board
-запусти крок 2   →  Solution Exploration guides placed (after participants fill Phase 1)
-запусти крок 3   →  Top Ideas selected per group
-запусти крок 4   →  Clustering in Ideas Pool + Clusters frames
-запусти крок 5   →  Final Solution synthesized
-запусти крок 6   →  Deep Research in Evaluation frame
+run step 1   →  Problem Exploration guides placed on board
+run step 2   →  Solution Exploration guides placed (after participants fill Phase 1)
+run step 3   →  Top Ideas selected per group
+run step 4   →  Clustering in Ideas Pool + Clusters frames
+run step 5   →  Final Solution synthesized
+run step 6   →  Deep Research in Evaluation frame
 ```
 
 > ⚠️ Start a **new chat** for each training session. The agent is stateless by design — all state lives on the Miro board, not in conversation memory.
