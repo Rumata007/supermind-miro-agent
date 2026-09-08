@@ -67,6 +67,8 @@ AI validates the final solution against real-world examples, academic research, 
 
 ## Board Structure
 
+> 📋 **[Template board](https://miro.com/app/board/uXjVHps0_1M=/?share_link_id=456753110758)** — copy this into your own Miro account to get the structure below pre-built, instead of setting it up by hand.
+
 Prepare the Miro board with the following frames before running the agent:
 
 ### Group Frames (3 required)
