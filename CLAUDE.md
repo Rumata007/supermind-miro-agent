@@ -445,7 +445,7 @@
 
    | Ключові слова в запиті | Тип | Інструмент |
    |------------------------|-----|-----------|
-   | граф, діаграма, схема, flowchart, mind map | `diagram` | MCP `diagram_create` |
+   | граф, діаграма, схема, flowchart, mind map | `diagram` | MCP `diagram_create_mermaid` |
    | таблиця, порівняй, порівняння, матриця | `table` | MCP `table_create` + `table_sync_rows` |
    | все інше | `doc` | MCP `doc_create` |
 
@@ -459,10 +459,11 @@
    - **doc**: MCP `doc_create` з `miro_url` = `MIRO_BOARD_URL?moveToWidget=<final_solution_frame_id>`, x=0, y=`suggested_y`
    - **table**: MCP `table_create` з тими ж координатами, потім `table_sync_rows`
    - **diagram**: ⚠️ Діаграми розміщуються **поза фреймом**, нижче на борді.
-     `diagram_create` використовує АБСОЛЮТНІ координати дошки. Алгоритм:
-     1. `node miro-api.mjs list-frames` → отримай x, y, height фрейму "Final Solution"
-     2. board_x = frame_x, board_y = frame_y + frame_height/2 + 7500
-     3. MCP `diagram_create` з `miro_url` = `MIRO_BOARD_URL` (БЕЗ moveToWidget!), x=board_x, y=board_y
+     `diagram_create_mermaid` використовує АБСОЛЮТНІ координати дошки і Mermaid-синтаксис. Алгоритм:
+     1. MCP `diagram_get_mermaid_instructions` → отримай актуальний формат Mermaid-синтаксису
+     2. `node miro-api.mjs list-frames` → отримай x, y, height фрейму "Final Solution"
+     3. board_x = frame_x, board_y = frame_y + frame_height/2 + 7500
+     4. MCP `diagram_create_mermaid` з `miro_url` = `MIRO_BOARD_URL` (БЕЗ moveToWidget!), x=board_x, y=board_y, mermaid-код за форматом з кроку 1
 
    д. Познач стікер як оброблений:
    ```bash

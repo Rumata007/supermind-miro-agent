@@ -5,6 +5,8 @@
 
 An AI-powered facilitation system that guides groups through **Supermind Design** (MIT Primer v2) on a Miro board. The AI acts as a facilitator of structured thinking — not a question-asker — helping groups explore problems deeply, generate diverse solutions, and synthesize them into an integrated outcome.
 
+> 🇺🇦 **Language note:** all board content the agent writes (facilitation guides, syntheses, documents) is currently hardcoded in Ukrainian in `CLAUDE.md` — that's the language the author runs workshops in. The command triggers themselves work in English (`run step 1`, `count votes`, …). If you need another working language, edit the templates in `CLAUDE.md` — they're plain text, not code.
+
 ## How It Works
 
 ```
@@ -94,9 +96,27 @@ Each group frame must contain text labels in this order (left to right):
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18+
-- A Miro board structured as described above
-- A [Miro REST API token](https://developers.miro.com/docs/getting-started)
-- [Claude Code](https://claude.ai/claude-code) with Miro MCP server connected
+- A Miro board structured as described below (or copy the [template board](https://miro.com/app/board/uXjVHps0_1M=/?share_link_id=456753110758))
+- [Claude Code](https://claude.ai/claude-code)
+
+### Connect the Miro MCP Server
+
+Half of the agent's actions (documents, tables, diagrams, board reading) go through Miro's official MCP server, not the CLI script — this step is required.
+
+```
+/plugin marketplace add miroapp/miro-ai
+/plugin install miro@miro-ai
+```
+
+(alternative: `claude mcp add --transport http miro https://mcp.miro.com`). Restart Claude Code, then run any Miro command — you'll be prompted to authenticate with your Miro account on first use.
+
+### Get a Miro REST API Token
+
+The CLI script (`miro-api.mjs`) needs its own token, separate from the MCP server's auth:
+
+1. Go to [Miro Developer Platform](https://developers.miro.com/docs/getting-started) → create an app in your workspace
+2. Install the app to your workspace to generate an access token
+3. Make sure the app has **read and write** board scopes (`boards:read`, `boards:write`) — a read-only token will fail on every `create-sticky` / `resize-frame` / `update-sticky-color` call
 
 ### Installation
 
@@ -108,7 +128,11 @@ npm install
 
 ### Configuration
 
-Create a `.env` file:
+Copy the example env file and fill in your own values:
+
+```bash
+cp .env.example .env
+```
 
 ```env
 MIRO_API_TOKEN=your_miro_api_token
@@ -177,9 +201,25 @@ node miro-api.mjs get-position-beside-item <item_id> --side right
 | Read frame content | MCP `context_get` |
 | Create documents | MCP `doc_create` |
 | Create tables | MCP `table_create` + `table_sync_rows` |
-| Create diagrams | MCP `diagram_create` |
+| Create diagrams | MCP `diagram_create_mermaid` |
 | Read/create stickies | `miro-api.mjs` CLI |
 | Deep research | `WebSearch` |
+
+## Known Limitations
+
+- **One board per `.env`.** `MIRO_BOARD_ID` is read once from `.env` at startup — there's no `--board` flag to override it per command. Running two sessions against two different boards from the same clone means the second one silently overwrites the first's config. Workaround: use a separate clone (and `.env`) per board, or per parallel session. Feel free to extend `miro-api.mjs` with a `--board` override if you need true multi-board support.
+- **Ukrainian-only content**, see the language note above.
+- **Exactly 3 group frames** (`Group A`/`B`/`C`) are recognized by name — a 4th group won't be picked up without editing `CLAUDE.md`.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---------|--------------|
+| `list-frames` returns `[]` | Wrong `MIRO_BOARD_ID`, or the token's app isn't installed on the board's workspace |
+| `API error 403` on write commands (`create-sticky`, `resize-frame`, …) | Token missing `boards:write` scope — see [Get a Miro REST API Token](#get-a-miro-rest-api-token) |
+| `API error 401` | Token expired or revoked — regenerate it in the Miro Developer Platform |
+| Requests hang then retry with "Rate limited. Waiting Ns..." | Expected — the script retries once automatically after the `Retry-After` delay |
+| Claude can't find a frame/label | Check exact frame/label spelling against [Board Structure](#board-structure) — the agent doesn't guess, it reports back instead |
 
 ## Theoretical Foundation
 
