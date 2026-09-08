@@ -99,8 +99,8 @@ Each group frame must contain text labels in this order (left to right):
 ### Installation
 
 ```bash
-git clone https://github.com/Rumata007/miro-agent.git
-cd miro-agent
+git clone https://github.com/Rumata007/supermind-miro-agent.git
+cd supermind-miro-agent
 npm install
 ```
 
