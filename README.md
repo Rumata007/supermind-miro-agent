@@ -209,7 +209,7 @@ node miro-api.mjs get-position-beside-item <item_id> --side right
 
 - **One board per `.env`.** `MIRO_BOARD_ID` is read once from `.env` at startup — there's no `--board` flag to override it per command. Running two sessions against two different boards from the same clone means the second one silently overwrites the first's config. Workaround: use a separate clone (and `.env`) per board, or per parallel session. Feel free to extend `miro-api.mjs` with a `--board` override if you need true multi-board support.
 - **Ukrainian-only content**, see the language note above.
-- **Exactly 3 group frames** (`Group A`/`B`/`C`) are recognized by name — a 4th group won't be picked up without editing `CLAUDE.md`.
+- **3 group frames (`Group A`/`B`/`C`) is the default the agent expects**, not a hard limit — it's what `CLAUDE.md` looks for out of the box. If your workshop has a different number or naming of groups, just tell the agent at the start of the session (or note it in the "Information" frame) and it will adapt; you don't need to edit `CLAUDE.md` for a one-off session.
 
 ## Troubleshooting
 
