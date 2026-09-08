@@ -1,0 +1,8 @@
+{
+  "name": "miro-agent",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
