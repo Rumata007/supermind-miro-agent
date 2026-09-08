@@ -73,7 +73,7 @@ AI validates the final solution against real-world examples, academic research, 
 
 Prepare the Miro board with the following frames before running the agent:
 
-### Group Frames (3 required)
+### Group Frames (3 by default — see [Known Limitations](#known-limitations))
 - **Group A**, **Group B**, **Group C**
 
 Each group frame must contain text labels in this order (left to right):
