@@ -131,7 +131,7 @@ async function createSticky(frameId, content, opts = {}) {
   const body = {
     data: { content: `<p>${content}</p>`, shape: 'square' },
     position: { x: opts.x || 0, y: opts.y || 0, origin: 'center' },
-    geometry: { width: 199 },
+    geometry: { width: opts.width || 199 },
     parent: { id: frameId },
   };
   if (opts.color) {
@@ -194,6 +194,31 @@ async function updateStickiesColor(frameId, itemIds, color) {
     if (results.length < itemIds.length) await sleep(200);
   }
   return results;
+}
+
+// Dot-voting dots are `dot_voting` items the API marks unsupported: it returns
+// id, author and time, but not the voted item (parent) or the dot colour.
+// The `type` query filter rejects dot_voting, so scan all items instead.
+async function listDotVotes(since) {
+  const dots = [];
+  let cursor = null;
+  do {
+    const qs = new URLSearchParams({ limit: '50' });
+    if (cursor) qs.set('cursor', cursor);
+    const data = await miroFetch('GET', `/items?${qs}`);
+    for (const item of data.data || []) {
+      if (item.type !== 'dot_voting') continue;
+      if (since && item.createdAt < since) continue;
+      dots.push({
+        id: item.id,
+        created_by: item.createdBy?.id || null,
+        created_at: item.createdAt,
+        frame_id: item.parent?.id || null,
+      });
+    }
+    cursor = data.cursor || null;
+  } while (cursor);
+  return dots;
 }
 
 async function getItem(itemId) {
@@ -362,14 +387,19 @@ async function main() {
     case 'create-sticky': {
       const frameId = positional[0];
       const content = positional[1];
-      if (!frameId || !content) { console.error('Usage: create-sticky <frame_id> "<content>" [--x N] [--y N] [--color COLOR]'); process.exit(1); }
+      if (!frameId || !content) { console.error('Usage: create-sticky <frame_id> "<content>" [--x N] [--y N] [--width N] [--color COLOR]'); process.exit(1); }
       result = await createSticky(frameId, content, {
         x: flags.x ? parseFloat(flags.x) : 0,
         y: flags.y ? parseFloat(flags.y) : 0,
+        width: flags.width ? parseFloat(flags.width) : null,
         color: flags.color || null,
       });
       break;
     }
+
+    case 'list-dot-votes':
+      result = await listDotVotes(flags.since || null);
+      break;
 
     case 'create-stickies-below-label': {
       const frameId = positional[0];
@@ -470,7 +500,8 @@ async function main() {
       console.error('  list-items-in-frame <frame_id> [--type TYPE]');
       console.error('  get-sticky <item_id>');
       console.error('  find-text-in-frame <frame_id> "<text>"');
-      console.error('  create-sticky <frame_id> "<content>" [--x N] [--y N] [--color COLOR]');
+      console.error('  create-sticky <frame_id> "<content>" [--x N] [--y N] [--width N] [--color COLOR]');
+      console.error('  list-dot-votes [--since ISO_TIME]');
       console.error('  create-stickies-below-label <frame_id> "<label>" \'<json_array>\' [--color COLOR]');
       console.error('  move-item <item_id> --x N --y N');
       console.error('  update-sticky-color <item_id> <color>');

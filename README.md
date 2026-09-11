@@ -167,9 +167,10 @@ node miro-api.mjs list-items-in-frame <frame_id> [--type sticky_note|text]
 # Read content
 node miro-api.mjs get-sticky <item_id>
 node miro-api.mjs find-text-in-frame <frame_id> "<text>"
+node miro-api.mjs list-dot-votes [--since ISO_TIME]
 
 # Write content
-node miro-api.mjs create-sticky <frame_id> "<content>" [--x N] [--y N] [--color COLOR]
+node miro-api.mjs create-sticky <frame_id> "<content>" [--x N] [--y N] [--width N] [--color COLOR]
 node miro-api.mjs create-stickies-below-label <frame_id> "<label>" '<json_array>' [--color COLOR]
 node miro-api.mjs get-position-below-label <frame_id> "<label>"
 node miro-api.mjs get-frame-bottom <frame_id>
