@@ -255,8 +255,9 @@ async function getPositionBesideItem(itemId, side = 'right', gap = 40) {
   const w = item.width || 400;
   const h = item.height || 400;
 
-  // doc_format items always report 400×400 via API but render much wider on canvas.
-  // Use a minimum effective half-width of 350px (= 700px full width) for docs to prevent overlap.
+  // doc_format items report 400×400 via REST regardless of submitted size, but the
+  // Canvas Composer renders every doc as a fixed 784×1105 page (verified live, Sep 2026).
+  // Use a minimum effective half-width of 490px (>784/2=392) for docs to prevent overlap.
   const isDoc = item.type === 'doc_format' || item.type === 'document';
   const halfW = isDoc ? Math.max(Math.round(w / 2), 490) : Math.round(w / 2);
 
@@ -303,9 +304,11 @@ async function getFrameBottom(frameId) {
   let maxBottom = -Infinity;
   for (const item of items) {
     const rawH = item.height || 0;
-    // doc_format always reports 400px height regardless of content; use 600 minimum to avoid overlap
+    // doc_format always reports 400px height via REST regardless of content, but the
+    // Canvas Composer renders every doc as a fixed 1105px-tall page (verified live, Sep 2026) —
+    // use that as the minimum, or docs placed below one another will overlap.
     const isDoc = item.type === 'doc_format' || item.type === 'document';
-    const effectiveH = isDoc ? Math.max(rawH, 600) : rawH;
+    const effectiveH = isDoc ? Math.max(rawH, 1105) : rawH;
     const bottom = (item.y || 0) + effectiveH / 2;
     if (bottom > maxBottom) maxBottom = bottom;
   }

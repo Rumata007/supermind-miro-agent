@@ -58,12 +58,11 @@
 
 | Що потрібно | Інструмент |
 |-------------|-----------|
-| Огляд дошки | MCP `context_explore` з board URL |
-| Зміст фрейму (AI summary) | MCP `context_get` з `?moveToWidget=<frame_id>` |
+| Огляд дошки | MCP `canvas_search` з `result_mode: "overview"` і board URL |
+| Пошук фрейму/елемента за назвою чи текстом | MCP `canvas_search` з `result_mode: "matches"` і `patterns: ["<текст>"]` |
+| Зміст фрейму або документа | MCP `canvas_read_as_svg` з `widget_ids: ["<frame_id або doc_id>"]` — повертає SVG, документ читається прямо з `<foreignObject data-type="doc">markdown</foreignObject>` |
 | Список елементів у фреймі | `node miro-api.mjs list-items-in-frame <frame_id> [--type sticky_note\|text]` |
 | Текст конкретного стікера | `node miro-api.mjs get-sticky <item_id>` |
-| Зміст документа | MCP `doc_get` з `?moveToWidget=<doc_id>` |
-| Список елементів на дошці | MCP `board_list_items` з board URL |
 | Точки dot voting (id, автор, час) | `node miro-api.mjs list-dot-votes [--since ISO_TIME]` — на якому елементі стоїть точка і якого вона кольору, API не каже; див. гілку B |
 
 ### Читання ідей учасників
@@ -88,18 +87,38 @@
 |-------------|-----------|
 | Нижня межа вмісту фрейму | `node miro-api.mjs get-frame-bottom <frame_id>` → повертає max_bottom_y, suggested_y, miro_url |
 | Змінити розмір/позицію фрейму | `node miro-api.mjs resize-frame <frame_id> --width N --height N [--x N --y N]` |
-| Позиція під міткою (для doc_create) | `node miro-api.mjs get-position-below-label <frame_id> "<label>"` → повертає x, y, miro_url |
+| Позиція під міткою (для документа) | `node miro-api.mjs get-position-below-label <frame_id> "<label>"` → повертає x, y, miro_url |
 | Один стікер | `node miro-api.mjs create-sticky <frame_id> "<text>" [--x N] [--y N] [--width N] [--color COLOR]` |
 | Стікери під міткою | `node miro-api.mjs create-stickies-below-label <frame_id> "<label>" '<json_array>' [--color COLOR]` |
-| Документ у фреймі | MCP `doc_create` з `?moveToWidget=<frame_id>` та координатами x, y |
+| Документ у фреймі | MCP `canvas_create_from_svg` з `<foreignObject data-type="doc" x=".." y=".." width=".." height="..">markdown</foreignObject>`, miro_url з `?moveToWidget=<frame_id>` — координати відносні до фрейму |
+| Діаграма (Mermaid) | MCP `canvas_create_from_svg` з `<foreignObject data-type="diagram" x=".." y=".." width=".." height="..">mermaid-код</foreignObject>` |
 | Таблиця поруч з документом | Спочатку: `node miro-api.mjs get-position-beside-item <doc_id> --side right`, потім MCP `table_create` |
-| Таблиця у фреймі | MCP `table_create` + `table_sync_rows` (doc_create **не підтримує** таблиці) |
+| Таблиця у фреймі | MCP `table_create` + `table_sync_rows` (документи/діаграми таблиці **не підтримують**) |
 | Змінити колір стікера | `node miro-api.mjs update-sticky-color <item_id> <color>` |
 | Змінити колір кількох стікерів | `node miro-api.mjs update-stickies-color <frame_id> <color> '<json_array_of_ids>'` |
 
+### Створення документів і діаграм (MCP `canvas_create_from_svg`)
+
+Miro замінила окремі `doc_create`/`diagram_create_mermaid` на єдиний спосіб — SVG-документ з одним чи кількома `<foreignObject>`:
+```xml
+<svg xmlns="http://www.w3.org/2000/svg">
+  <foreignObject data-type="doc" x="0" y="0" width="400" height="200">
+    # Заголовок
+    Текст у markdown...
+  </foreignObject>
+</svg>
+```
+Для діаграми — те саме, але `data-type="diagram"`, а вміст `<foreignObject>` — це Mermaid-код (`flowchart TD\n  A --> B`), без markdown-обгортки.
+
+**Важливо, перевірено наживо:**
+- **Документ завжди рендериться фіксованим розміром 784×1105**, незалежно від довжини тексту (довгий текст скролиться всередині, видима межа на канвасі не росте). Подані `width`/`height` ігноруються рендерингом — задавай будь-що, реальні межі читай з `data-rendered-bounds` у відповіді.
+- **Діаграма розміром під контент**, автоцентрується біля заданої точки — теж звіряй `data-rendered-bounds`.
+- Miro може **сама зсунути координати**, щоб уникнути накладання (це видно в `message` відповіді, напр. "auto-placement moved this batch by..."), інколи суттєво і навіть за межі цільового фрейму. Після кожного `canvas_create_from_svg` перевіряй `data-rendered-bounds` у `result_svg`; якщо елемент став не там — виправ через `canvas_update_from_svg` (нижче) або перечитай позицію `canvas_search`/`canvas_read_as_svg`.
+- **Видалення:** документ можна видалити через `canvas_update_from_svg` з `data-deleted="true"` на потрібному `data-miro-id`. **Діаграму так видалити не можна** ("diagrams cannot be deleted") — використовуй `node miro-api.mjs delete-item <id>` (REST, працює для обох типів).
+
 ### Правило: doc + table поруч
 Якщо документ містить таблицю — розміщуй її **окремим Miro-елементом праворуч** від документа:
-1. Створи документ через MCP `doc_create` → запам'ятай `doc_id` з поверненого miro_url
+1. Створи документ через MCP `canvas_create_from_svg` → візьми `data-miro-id` з `created_ids`/`result_svg`
 2. `node miro-api.mjs get-position-beside-item <doc_id> --side right` → отримай x, y
 3. MCP `table_create` з цими координатами → заповни `table_sync_rows`
 
@@ -116,9 +135,8 @@
 
 1. **Прочитай кейс з фрейму "Information":**
    - `node miro-api.mjs list-frames` → знайди фрейм "Information"
-   - MCP `context_get` з `?moveToWidget=<info_frame_id>`
    - `node miro-api.mjs list-items-in-frame <info_frame_id>` → знайди документи
-   - MCP `doc_get` для кожного документа
+   - MCP `canvas_read_as_svg` з `widget_ids: [<info_frame_id>]` (або конкретних `doc_id`) — читай `<foreignObject data-type="doc">` для кожного документа
 
 2. **Знайди групові фрейми** (Group A, B, C) через `list-frames`
 
@@ -128,7 +146,7 @@
    ```bash
    node miro-api.mjs get-position-below-label <frame_id> "Zoom In"
    ```
-   Створи документ через MCP `doc_create` (адаптуй зміст до конкретного кейсу):
+   Створи документ через MCP `canvas_create_from_svg` (адаптуй зміст до конкретного кейсу):
 
    ```
    # Дослідження проблеми — [Group A / B / C]
@@ -195,7 +213,7 @@
    ```bash
    node miro-api.mjs get-position-below-label <frame_id> "Cognify"
    ```
-   Створи документ через MCP `doc_create`, лівий край — трохи лівіше мітки (x ≈ x_мітки − 280), щоб праворуч і нижче лишилось місце для стікерів:
+   Створи документ через MCP `canvas_create_from_svg`, лівий край — трохи лівіше мітки (x ≈ x_мітки − 280), щоб праворуч і нижче лишилось місце для стікерів:
 
    ```
    # Дослідження рішень — [Group A / B / C]
@@ -257,7 +275,7 @@
    ```bash
    node miro-api.mjs get-position-below-label <frame_id> "Top Ideas"
    ```
-   Документ через MCP `doc_create`:
+   Документ через MCP `canvas_create_from_svg`:
 
    ```
    # Топ-ідеї — [Group A / B / C]
@@ -284,11 +302,11 @@
 1. **Прочитай Top Ideas документи з усіх груп:**
    - `list-items-in-frame <group_frame_id>` для кожного з Group A, B, C
    - Знайди doc_format елементи під міткою "Top Ideas"
-   - MCP `doc_get` для кожного Top Ideas документа
+   - MCP `canvas_read_as_svg` для кожного Top Ideas документа
 
 2. **Збери всі ідеї у фреймі "Ideas Pool":**
    - Знайди фрейм "Ideas Pool" через `list-frames`
-   - Створи зведений документ через MCP `doc_create`:
+   - Створи зведений документ через MCP `canvas_create_from_svg`:
      - Перелік усіх ідей з усіх груп з позначкою джерела (Group A / B / C)
      - miro_url: `MIRO_BOARD_URL?moveToWidget=<ideas_pool_frame_id>`
 
@@ -298,7 +316,7 @@
 
 4. **Розмісти кожен кластер окремим документом у фреймі "Clusters":**
    - Знайди фрейм "Clusters"
-   - Для кожного кластера — `get-frame-bottom <clusters_frame_id>` → `doc_create`:
+   - Для кожного кластера — `get-frame-bottom <clusters_frame_id>` → `canvas_create_from_svg`:
 
    ```
    # Кластер: [Назва кластера]
@@ -360,7 +378,7 @@
    ```bash
    node miro-api.mjs get-frame-bottom <clusters_frame_id>
    ```
-   Створи через MCP `doc_create` з `?moveToWidget=<clusters_frame_id>`, x=0, y=suggested_y:
+   Створи через MCP `canvas_create_from_svg` з `?moveToWidget=<clusters_frame_id>`, x=0, y=suggested_y:
 
    ```
    # Результати голосування
@@ -388,7 +406,7 @@
 
 1. **Прочитай всі кластери з фрейму "Clusters":**
    - `list-items-in-frame <clusters_frame_id>`
-   - MCP `doc_get` для кожного кластер-документа
+   - MCP `canvas_read_as_svg` для кожного кластер-документа
 
 2. **Синтезуй фінальне рішення за принципом "1+1+1 > 3":**
    - Знайди точки перетину між кластерами
@@ -397,7 +415,7 @@
 
 3. **Створи документ у фреймі "Final Solution":**
    - Знайди фрейм "Final Solution" через `list-frames`
-   - MCP `doc_create` з `?moveToWidget=<final_solution_frame_id>`:
+   - MCP `canvas_create_from_svg` з `?moveToWidget=<final_solution_frame_id>`:
 
    ```
    # Фінальне рішення
@@ -456,9 +474,9 @@
 
    | Ключові слова в запиті | Тип | Інструмент |
    |------------------------|-----|-----------|
-   | граф, діаграма, схема, flowchart, mind map | `diagram` | MCP `diagram_create_mermaid` |
+   | граф, діаграма, схема, flowchart, mind map | `diagram` | MCP `canvas_create_from_svg` (`data-type="diagram"`) |
    | таблиця, порівняй, порівняння, матриця | `table` | MCP `table_create` + `table_sync_rows` |
-   | все інше | `doc` | MCP `doc_create` |
+   | все інше | `doc` | MCP `canvas_create_from_svg` (`data-type="doc"`) |
 
    в. Знайди місце розміщення — нижня межа вмісту фрейму:
    ```bash
@@ -467,14 +485,14 @@
    Використовуй `suggested_y` як координату y. X = 0 (центр фрейму).
 
    г. Створи контент:
-   - **doc**: MCP `doc_create` з `miro_url` = `MIRO_BOARD_URL?moveToWidget=<final_solution_frame_id>`, x=0, y=`suggested_y`
+   - **doc**: MCP `canvas_create_from_svg` з `miro_url` = `MIRO_BOARD_URL?moveToWidget=<final_solution_frame_id>`, `<foreignObject data-type="doc" x="0" y="suggested_y" ...>`
    - **table**: MCP `table_create` з тими ж координатами, потім `table_sync_rows`
-   - **diagram**: ⚠️ Діаграми розміщуються **поза фреймом**, нижче на борді.
-     `diagram_create_mermaid` використовує АБСОЛЮТНІ координати дошки і Mermaid-синтаксис. Алгоритм:
-     1. MCP `diagram_get_mermaid_instructions` → отримай актуальний формат Mermaid-синтаксису
-     2. `node miro-api.mjs list-frames` → отримай x, y, height фрейму "Final Solution"
-     3. board_x = frame_x, board_y = frame_y + frame_height/2 + 7500
-     4. MCP `diagram_create_mermaid` з `miro_url` = `MIRO_BOARD_URL` (БЕЗ moveToWidget!), x=board_x, y=board_y, mermaid-код за форматом з кроку 1
+   - **diagram**: ⚠️ Діаграми розміщуються **поза фреймом**, нижче на борді, АБСОЛЮТНИМИ координатами дошки (без `moveToWidget`). Алгоритм:
+     1. `node miro-api.mjs list-frames` → отримай x, y, height фрейму "Final Solution"
+     2. board_x = frame_x, board_y = frame_y + frame_height/2 + 7500
+     3. MCP `canvas_create_from_svg` з `miro_url` = `MIRO_BOARD_URL` (БЕЗ moveToWidget!), `<foreignObject data-type="diagram" x="board_x" y="board_y" ...>` + Mermaid-код усередині (`flowchart TD\n  A --> B`, без markdown-обгортки)
+     4. Діаграма сама підбирає розмір під контент і може зміститись від заданої точки — звір фінальну позицію по `data-rendered-bounds` у відповіді
+     5. ⚠️ Діаграму не можна видалити через `canvas_update_from_svg` — якщо потрібно прибрати помилково створену, використовуй `node miro-api.mjs delete-item <id>`
 
    д. Познач стікер як оброблений:
    ```bash
@@ -488,7 +506,7 @@
 ### Примітки
 - Неоднозначний запит → `doc` за замовчуванням
 - При помилці — повідом фасилітатору, продовжуй наступний стікер
-- Таблиці з коротким поясненням: спочатку `doc_create` (контекст), потім `get-position-beside-item --side right` → `table_create` поруч
+- Таблиці з коротким поясненням: спочатку `canvas_create_from_svg` (документ-контекст), потім `get-position-beside-item --side right` → `table_create` поруч
 
 ---
 
@@ -514,7 +532,7 @@
    - Координати відносно лівого верхнього кута фрейму; 5 колонок з кроком 520px, рядки з кроком ~580px, перший рядок y≈400.
    - Ширина 400 — щоб точки менше перекривались. Не використовуй `green` (це колір «оброблено агентом»).
    - Запам'ятай id кожного кандидата і час завершення кроку (ISO) — вони потрібні в B2.
-4. Під сіткою (`get-frame-bottom` → `doc_create`) розмісти коротку інструкцію:
+4. Під сіткою (`get-frame-bottom` → `canvas_create_from_svg`) розмісти коротку інструкцію:
    ```
    # Ворота Барнетта — голосування
 
@@ -561,7 +579,7 @@
    - r > 0.75 → **знімаємо**, але винеси окремим списком «на розсуд фасилітатора»: за Барнеттом непопулярна ідея теж може бути цінною
    - Окремо рахуй унікальних голосувальників (`by`) — якщо одна людина поставила кілька точок, це видно. Гості анонімні, тож визначити групу голосувальника не можна.
 5. **Не змінюй і не видаляй стікери, на яких стоять точки,** через REST: видалення повертає 500, зміни не перевірені. Результат оформлюй окремим документом.
-6. Під інструкцією у фреймі "Ворота Барнетта" (`get-frame-bottom` → `doc_create`):
+6. Під інструкцією у фреймі "Ворота Барнетта" (`get-frame-bottom` → `canvas_create_from_svg`):
    ```
    # Ворота Барнетта — результат
 
@@ -606,7 +624,7 @@
 
 1. **Прочитай Final Solution** з фрейму "Final Solution":
    - `list-items-in-frame <final_solution_frame_id>` → знайди doc_format елементи
-   - MCP `doc_get` для головного документа
+   - MCP `canvas_read_as_svg` для головного документа
 
 2. **Витягни ключові тези:**
    - Запропоновані рішення
@@ -621,7 +639,7 @@
 
 4. **Створи дослідницький документ** у фреймі "Evaluation":
    - Знайди фрейм "Evaluation" через `list-frames`
-   - MCP `doc_create` з `?moveToWidget=<evaluation_frame_id>`
+   - MCP `canvas_create_from_svg` з `?moveToWidget=<evaluation_frame_id>`
    - Кожна знахідка з посиланням на джерело
    - Оцінка релевантності та застосовності
    - Загальна оцінка валідності рішення
