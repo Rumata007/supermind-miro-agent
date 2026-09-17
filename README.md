@@ -256,11 +256,11 @@ node miro-api.mjs get-position-beside-item <item_id> --side right
 
 | Need | Tool |
 |------|------|
-| Read board overview | MCP `context_explore` |
-| Read frame content | MCP `context_get` |
-| Create documents | MCP `doc_create` |
+| Read board overview | MCP `canvas_search` |
+| Read frame/document content | MCP `canvas_read_as_svg` |
+| Create documents | MCP `canvas_create_from_svg` (`data-type="doc"`) |
 | Create tables | MCP `table_create` + `table_sync_rows` |
-| Create diagrams | MCP `diagram_create_mermaid` |
+| Create diagrams | MCP `canvas_create_from_svg` (`data-type="diagram"`) |
 | Read/create stickies | `miro-api.mjs` CLI |
 | List dot votes (id, author, time) | `miro-api.mjs list-dot-votes` |
 | Map dots to stickies and read colours | Claude in Chrome: Miro Web SDK on the board page (`parentId`) + screenshots |
@@ -276,6 +276,7 @@ node miro-api.mjs get-position-beside-item <item_id> --side right
   - Participants sometimes resize dots or draw circle shapes instead of voting — the agent counts those too, but check the total.
   - Guests vote anonymously, so the agent can't tell which group a voter belongs to.
 - **Stickies that carry dot votes can't be deleted via the REST API** (it returns 500). Remove them by hand in Miro.
+- **Miro's document/diagram MCP tools are unusually volatile.** As of September 2026 Miro had already deprecated and removed one generation of tools (`doc_create`, `diagram_create_mermaid`, `context_get`, …) in favor of a unified SVG-based "Canvas Composer" (`canvas_create_from_svg`, `canvas_read_as_svg`, `canvas_search`). Verified quirks of the current generation: documents always render as a fixed 784×1105 page regardless of content (long text scrolls inside instead of growing the widget), diagrams size to their content instead, `canvas_create_from_svg` can silently shift your requested coordinates to avoid overlap (check `data-rendered-bounds` in the response), and diagrams can't be deleted via `canvas_update_from_svg` — use `node miro-api.mjs delete-item <id>` instead. If Miro changes this again, `CLAUDE.md`'s "How to Read/Write the Board" sections are the place to update.
 - **3 group frames (`Group A`/`B`/`C`) is the default the agent expects**, not a hard limit — it's what `CLAUDE.md` looks for out of the box. If your workshop has a different number or naming of groups, just tell the agent at the start of the session (or note it in the "Information" frame) and it will adapt; you don't need to edit `CLAUDE.md` for a one-off session.
 
 ## Troubleshooting
